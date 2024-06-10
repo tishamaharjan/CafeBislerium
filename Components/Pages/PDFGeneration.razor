@@ -1,0 +1,161 @@
+﻿@page "/pdf"
+@using CafeBislerium.Components.Layout;
+
+<div class="container mt-5">
+    <!-- Daily Report -->
+    <div class="row my-3">
+        <div class="col-md-6">
+            <h3>Print Daily Report</h3>
+            <div class="form-group">
+                <label for="dailyDate">Select Date:</label>
+                <input type="date" class="form-control" style="background-color: #D0BFFF;" id="dailyDate" @bind="day" @onclick="() => { generateDailyReport = false; }">
+            </div>
+            <button class="btn btn-primary mt-4" style="background-color:rebeccapurple;" @onclick="() => DailyReportButton()">Generate Daily Report</button>
+        </div>
+    </div>
+
+    @if (generateDailyReport)
+    {
+        <AlertMessage MessagesType="success" Message="Generated Report!" />
+    }
+
+    <!-- Monthly Report -->
+    <div class="row my-3">
+        <div class="col-md-6">
+            <h3>Print Monthly Report</h3>
+            <div class="form-group">
+                <label for="monthlyMonth">Select Month:</label>
+                <input type="month" class="form-control" style="background-color: #D0BFFF;" id="monthlyMonth" @bind="month" @onclick="() => { generateMonthlyReport = false; }">
+            </div>
+            <button class="btn btn-primary mt-4" style="background-color:rebeccapurple;" @onclick="() => MonthlyReportButton()">Generate Monthly Report</button>
+        </div>
+    </div>
+
+    @if (generateMonthlyReport)
+    {
+        <AlertMessage MessagesType="success" Message="Generated Report!" />
+    }
+</div>
+
+@code {
+    private DateTime day { get; set; } = DateTime.Now;
+    private DateTime month { get; set; } = DateTime.Now;
+    private List<Data.Order> _orders { get; set; }
+
+    private bool generateDailyReport { get; set; } = false;
+    private bool generateMonthlyReport { get; set; } = false;
+
+    public class CoffeeValues
+    {
+        public string CoffeeName { get; set; }
+        public int TotalCoffeeQuantity { get; set; }
+    }
+
+    public class AddinValues
+    {
+        public string AddinName { get; set; }
+        public int TotalAddinsQuantity { get; set; }
+    }
+
+    protected override void OnInitialized()
+    {
+        _orders = OrderDetails.GetOrderDetails();
+    }
+
+    //Calculating grand total
+    private float GrandTotalPrice(List<Data.Order> orders)
+    {
+        float grandTotal = 0;
+        foreach (var order in orders)
+        {
+            grandTotal = grandTotal + order.TotalPrice;
+        }
+
+        return grandTotal;
+    }
+
+    //method for daily report
+    private void DailyReportButton()
+    {
+        generateDailyReport = false;
+        List<Data.Order> dayOrders = _orders.Where(order => order.OrderDate.Date == day.Date).ToList();
+
+        float totalSales = GrandTotalPrice(dayOrders);
+        List<CoffeeValues> topFiveCoffees = MostLikedCoffee(dayOrders);
+        List<AddinValues> topFiveAddIns = MostLikedAddins(dayOrders);
+        var pdfService = new PDFService();
+
+        string filePath = Path.Combine(Utils.GetAppFolder(), $"daily-report{day.Day}-{day.Month}-{day.Year}.pdf");
+        try
+        {
+            pdfService.GenerateReport(filePath, day, totalSales, topFiveCoffees, topFiveAddIns);
+            generateDailyReport = true;
+
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
+
+    //method for monthly report
+    private void MonthlyReportButton()
+    {
+        generateMonthlyReport = false;
+        List<Data.Order> monthOrders = _orders.Where(order => order.OrderDate.Month == month.Month).ToList();
+
+        float totalSales = GrandTotalPrice(monthOrders);
+        List<CoffeeValues> topFiveCoffees = MostLikedCoffee(monthOrders);
+        List<AddinValues> topFiveAddIns = MostLikedAddins(monthOrders);
+        var pdfService = new PDFService();
+        string filePath = Path.Combine(Utils.GetAppFolder(), $"monthly-report-{day.Day}-{day.Month}-{day.Year}.pdf");
+        try
+        {
+            pdfService.GenerateReport(filePath, month, totalSales, topFiveCoffees, topFiveAddIns);
+            generateMonthlyReport = true;
+
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
+
+    //method for top 5 orderd coffee items
+    private List<CoffeeValues> MostLikedCoffee(List<Data.Order> orders)
+    {
+        var coffeeStats = orders
+            .SelectMany(order => order.Items)
+            .Where(item => item.Category == ItemCategory.Coffee)
+            .GroupBy(coffee => coffee.ItemName)
+            .Select(group => new CoffeeValues
+                {
+                    CoffeeName = group.Key,
+                    TotalCoffeeQuantity = group.Sum(coffee => coffee.Quantity) 
+                })
+            .OrderByDescending(stat => stat.TotalCoffeeQuantity)
+            .Take(5)
+            .ToList();
+
+        return coffeeStats;
+    }
+
+    //method for top 5 orderd addins items
+    private List<AddinValues> MostLikedAddins(List<Data.Order> orders)
+    {
+        var addinStats = orders
+            .SelectMany(order => order.Items)
+            .Where(item => item.Category == ItemCategory.Addin)
+            .GroupBy(addin => addin.ItemName)
+            .Select(group => new AddinValues
+                {
+                    AddinName = group.Key,
+                    TotalAddinsQuantity = group.Sum(addin => addin.Quantity)
+                })
+            .OrderByDescending(stat => stat.TotalAddinsQuantity)
+            .Take(5)
+            .ToList();
+
+        return addinStats;
+    }
+}

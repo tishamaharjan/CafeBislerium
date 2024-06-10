@@ -1,0 +1,57 @@
+﻿@page "/orderHistory"
+
+<h2>Order History</h2>
+
+@if (orders != null && orders.Any())
+{
+    <table class="table table-bordered">
+        <thead style="background-color: #D0BFFF;">
+            <tr>
+                <th>Order No.</th>
+                <th>Items</th>
+                <th>Customer ID</th>
+                <th>Sales Date</th>
+                <th>Sales Time</th>
+                <th>Total amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{
+                int count = 0;
+            }
+            @foreach (var placedOrders in orders)
+            {
+                count = count + 1;
+                <tr>
+                    <td>@count</td>
+                    <td>
+                        @foreach(var item in placedOrders.Items)
+                        {
+                            <span>@item.ItemName</span>
+                            <br />
+                        }
+                    </td>
+
+                    <td>@placedOrders.CustID</td>
+                    <td>@placedOrders.OrderDate.ToString("yyyy-MM-dd")</td>
+                    <td>@placedOrders.OrderDate.ToString("HH:mm:ss")</td>
+                    <td>@placedOrders.TotalPrice</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>No order placed.</p>
+}
+
+@code {
+    List<Data.Order> orders;
+
+    protected override void OnInitialized()
+    {
+        // getting the order details from OrderDetails.cs file
+        orders = Data.OrderDetails.GetOrderDetails();
+    }
+}

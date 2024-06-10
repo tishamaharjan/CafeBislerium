@@ -1,0 +1,35 @@
+﻿@using CafeBislerium.Data
+@inherits LayoutComponentBase
+@inject NavigationManager NavManager
+
+<div class="page">
+
+    @if (_globalState.CurrentActiveUser != null)
+    {
+        <div class="sidebar">
+            <NavMenu Username="@_globalState.CurrentActiveUser.Username" UserRole="@_globalState.CurrentActiveUser.Role" LogoutHandler="LogoutHandler" />
+        </div>
+    }
+
+    <main>
+        <article class="content px-4">
+            <CascadingValue Value="@_globalState">
+                @Body
+            </CascadingValue>
+        </article>
+    </main>
+</div>
+@code {
+    private GlobalState _globalState = new();
+
+    protected override void OnInitialized()
+    {
+        UserDetails.DefaultUser();
+    }
+
+    private void LogoutHandler()
+    {
+        _globalState.CurrentActiveUser = null;
+        NavManager.NavigateTo("/login");
+    }
+}

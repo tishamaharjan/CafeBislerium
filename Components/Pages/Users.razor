@@ -1,0 +1,177 @@
+﻿@page "/users"
+@using CafeBislerium.Components.Layout
+@using CafeBislerium.Data
+
+<!-- Navbar on the side -->
+<nav class="navbar navbar-light">
+    <h2>Users</h2>
+
+    <button class="btn btn-success" style="background-color:rebeccapurple;" type="button" @onclick="OpenAddUserDialog">
+        <i class="fa-solid fa-user-plus"></i> Add
+    </button>
+</nav>
+
+<!-- Table for created users -->
+<table class="table table-bordered table-hover">
+    <thead style="background-color:  #D0BFFF;">
+        <tr>
+            <th scope="col">Username</th>
+            <th scope="col">Role</th>
+            <th scope="col" style="width: 200px;">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- Loop for adding users in row -->
+        @foreach (var user in _users)
+        {
+            <tr>
+                <td>@user.Username</td>
+                <td>@user.Role.ToString()</td>
+                <td>
+                    <button disabled="@(_globalState?.CurrentActiveUser != null ? _globalState.CurrentActiveUser.UserID == user.UserID : false)"
+                            class="btn btn-sm btn-outline-danger" @onclick="()=>OpenDeleteUserDialog(user)">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Adding user dialog box with input s-->
+@if (_showAddUserDialog)
+{
+    <!-- Dialog box for adding username, password and their role -->
+    <ModalDialog Title="Add User" OnClose="@CloseAddUserDialog" OkLabel="Add">
+        <form>
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control username" @bind="_username" placeholder="Username" />
+                <label for="floatingInput">Username</label>
+            </div>
+
+            <div class="form-floating mb-3">
+                <input type="password" class="form-control password" @bind="_password" placeholder="Password" />
+                <label for="floatingPassword">Password</label>
+            </div>
+
+            <div class="form-check">
+                <input id="adminRole" type="radio" class="form-check-input" name="role" value="@Roles.Admin"
+                       @onchange="RoleChangeHandler" checked="@(_role == Roles.Admin)">
+                <label class="form-check-label" for="adminRole">@Roles.Admin</label>
+            </div>
+
+            <div class="form-check">
+                <input id="userRole" type="radio" class="form-check-input" name="role" value="@Roles.Staff"
+                       @onchange="RoleChangeHandler" checked="@(_role == Roles.Staff)">
+                <label class="form-check-label" for="userRole">@Roles.Staff</label>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_addUserErrorMessage))
+            {
+                <AlertMessage Type="danger" Message="@_addUserErrorMessage" />
+            }
+        </form>
+    </ModalDialog>
+}
+
+
+@if (_showDeleteBox)
+{
+    <!-- Dialog box for deleting user -->
+    <ModalDialog Title="Delete User" OnClose="@OnDeleteUserDialogClose" OkLabel="Confirm">
+        <p>Are you sure you want to delete user <strong>@_deleteUser.Username</strong></p>
+        @if (!string.IsNullOrEmpty(_deleteErrorMessage))
+        {
+            <AlertMessage Type="danger" Message="@_deleteErrorMessage" />
+        }
+    </ModalDialog>
+}
+
+@code {
+    [CascadingParameter]
+    private GlobalState? _globalState { get; set; }
+    private List<User> _users { get; set; }
+    private User _deleteUser { get; set; }
+    private bool _showAddUserDialog { get; set; }
+    private string? _addUserErrorMessage { get; set; }
+    private bool _showDeleteBox { get; set; }
+    private string? _deleteErrorMessage { get; set; }
+    private string? _username { get; set; }
+    private string? _password { get; set; }
+    private Roles _role { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _users = UserDetails.GetUserDetails();
+    }
+
+    //Method for adding user
+    private void OpenAddUserDialog()
+    {
+        _showAddUserDialog = true;
+        _username = "";
+        _password = "";
+        _role = Roles.Staff;
+    }
+
+    //Method for closing add user while canceling to add new user
+    private void CloseAddUserDialog(bool isCancel)
+    {
+        if (isCancel)
+        {
+
+            _showAddUserDialog = false;
+        }
+        else
+        {
+            try
+            {
+                _addUserErrorMessage = "";
+                _users = UserDetails.NewUser(_globalState.CurrentActiveUser.UserID, _username, _password, _role);
+                _showAddUserDialog = false;
+            }
+            catch (Exception e)
+            {
+                _addUserErrorMessage = e.Message;
+            }
+        }
+    }
+
+    //Method for handling change in roles of users
+    private void RoleChangeHandler(ChangeEventArgs e)
+    {
+        _role = (Roles)Enum.Parse(typeof(Roles), e.Value.ToString());
+    }
+
+    //Method for deleting user
+    private void OpenDeleteUserDialog(User user)
+    {
+        _deleteUser = user;
+        _showDeleteBox = true;
+    }
+    
+    //Method for closing delete user while canceling to delete
+    private void OnDeleteUserDialogClose(bool isCancel)
+    {
+        if (isCancel)
+        {
+
+            _showDeleteBox = false;
+            _deleteUser = null;
+        }
+        else
+        {
+            try
+            {
+                _deleteErrorMessage = "";
+                _users = UserDetails.DeleteUser(_deleteUser.UserID);
+                _showDeleteBox = false;
+                _deleteUser = null;
+            }
+            catch (Exception e)
+            {
+                _deleteErrorMessage = e.Message;
+            }
+        }
+    }
+}

@@ -1,0 +1,346 @@
+﻿@page "/order"
+@using CafeBislerium.Components.Layout
+
+<head>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+</head>
+
+<nav class="navbar navbar-light">
+    <h2>Order</h2>
+</nav>
+
+<div class="main-container">
+    <div class="left-container">
+        <div class="filter-buttons"> <!-- buttons for coffee and addins -->
+            <button class="btn btn-primary" style="background-color:rebeccapurple;" @onclick="() => FilterItems(ItemCategory.Coffee)">Items</button>
+            <button class="btn btn-primary" style="background-color:rebeccapurple;" @onclick="() => FilterItems(ItemCategory.Addin)" disabled="@(!_itemAdded)">Add-Ins</button>
+        </div>
+
+        <div class="item-cards">
+            @foreach (var item in sortedItems)
+            {
+                <!-- Displaying items with their price-->
+                <div class="card">
+                    @if (item.Category == ItemCategory.Coffee)
+                    {
+                        <i class="fa-solid fa-mug-hot"></i> 
+                    }
+                    else if (item.Category == ItemCategory.Addin)
+                    {
+                        <i class="fa-regular fa-square-plus"></i> 
+                    }
+                    <div>@item.ItemName</div>
+                    <div>Rs.@item.Price</div>
+                    <button style="background-color:rebeccapurple; color:white" @onclick="() => AddToSelectedItems(item)">Add</button>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="right-container">
+        <h3>Choosed Items</h3>
+        <div class="selected-items">
+            @foreach (var items in ItemsSelected)
+            {
+                <!--Display selected item name, total price and quantity where quantity can be added and subtracted through buttons -->
+                <div class="Item-Selected">
+                    <div class="item-name">@items.Items.ItemName - Rs.@items.GetTotalPrice()</div>
+                    <div class="buttons-container">
+                        <button style="background-color:mediumpurple;" @onclick="() => DecreaseQuantity(items)">-</button>
+                        @items.Quantity
+                        <button style="background-color:mediumpurple;" @onclick="() => IncreaseQuantity(items)">+</button>
+                        <button style="background-color:red;  color:white" @onclick="() => UnselectItems(items)">X</button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div>
+            <h3>Checkout</h3>
+            <input type="number" placeholder="Enter customer membership ID" @bind="_custID" />
+            <button style="background-color:rebeccapurple; color:white" @onclick="CheckOrder" disabled="@(!_itemAdded)">Next</button>
+        </div>
+
+        @if (_orderDialogBox)
+        {
+            if (_giveDiscount)
+            {
+                <!-- Dialogbox for confirming order with discount-->
+                <ModalDialog Title="Confirm Order" OnClose="@ClaimFreeItem" OkLabel="Accept">
+                    <div>
+                        <p>Claim your free coffee.</p>
+                    </div>
+                </ModalDialog>
+            }
+            else
+            {
+                <!-- Dialog box for confirming orders -->
+                <ModalDialog Title="Confirm Order" OnClose="@OnCancelOrderDialog" OkLabel="Confirm">
+                    <div>
+                        <p>Customer ID: @_custID</p>
+                        <p>Selected Items:</p>
+                        <!-- Add different items until items being added while ordering -->
+                        @foreach (var items in ItemsSelected)
+                        {
+                            <span> > @items.Items.ItemName - Rs.@items.GetTotalPrice()</span>
+                            <br />
+                        }
+                        <!-- Display total and discount -->
+                        <p>Total without discount: Rs.@CalculateGrossTotal()</p>
+                        <p>Discount: Rs.@CalculateDiscountAmount()</p>
+                        <p>Total Amt: Rs.@CalculateNetTotal()</p>
+                    </div>
+                </ModalDialog>
+            }
+        }
+
+        <!-- Displaying success message after placing ordering -->
+        @if (_orderSuccessfulDialog)
+        {
+            <div style="margin-top: 20px;">
+                <AlertMessage MessagesType="success" Message="Order successful! :D" />
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private long _custID { get; set; }
+    private bool _orderDialogBox = false;
+    private bool _orderSuccessfulDialog = false;
+    private bool _itemAdded => ItemsSelected.Any();
+    private bool _giveDiscount { get; set; }
+
+    private System.Timers.Timer messageTimer;
+
+    List<Items> items = ItemDetails.GetItemDetails();
+    List<Items> sortedItems = new List<Items>();
+    List<SelectedItem> ItemsSelected = new List<SelectedItem>();
+
+    protected override void OnInitialized()
+    {
+        FilterItems(ItemCategory.Coffee);
+    }
+
+    //Sorting items by item category
+    void FilterItems(ItemCategory itemType)
+    {
+        sortedItems = items.Where(i => i.Category == itemType).ToList();
+    }
+
+    //Method for adding item in order
+    void AddToSelectedItems(Items selectedItem)
+    {
+        var existingSelectedItem = ItemsSelected.FirstOrDefault(i => i.Items.ItemName == selectedItem.ItemName);
+
+        if (existingSelectedItem != null)
+        {
+            existingSelectedItem.Quantity++;
+        }
+        else
+        {
+            var newSelectedItem = new SelectedItem
+                {
+                    Items = selectedItem,
+                    Quantity = 1
+                };
+            ItemsSelected.Add(newSelectedItem);
+        }
+
+        StateHasChanged();
+    }
+
+    //Method for increasing quantity of the item
+    void IncreaseQuantity(SelectedItem selectedItem)
+    {
+        selectedItem.Quantity++;
+    }
+
+    //Method for decreasing quantity of the item
+    void DecreaseQuantity(SelectedItem selectedItem)
+    {
+        if (selectedItem.Quantity > 1)
+        {
+            selectedItem.Quantity--;
+        }
+    }
+
+    //Method for unselecting the item
+    void UnselectItems(SelectedItem selectedItem)
+    {
+        ItemsSelected.Remove(selectedItem);
+        StateHasChanged();
+    }
+
+    //MEthod for conditions of gettng discoount
+    float GetDiscount()
+    {
+        int custOrderCount = OrderDetails.GetOrderByCustId(_custID)
+            .Select(transaction => transaction.OrderDate.Date)
+            .Distinct()
+            .Count(date => (DateTime.Now - date).Days <= 30);
+
+        float discountPercentage = (custOrderCount >22) ? 10 : 0;//for if-else statement
+        return discountPercentage;
+    }
+
+
+    void CheckOrder()
+    {
+        // Checking if customer is already in the customer.json file
+        bool isExistingCustomer = OrderDetails.GetOrderByCustId(_custID).Any();
+        List<Customer> customers = CustomerDetails.GetCustDetails();
+        var customer = customers.FirstOrDefault(x => x.CustID == _custID);
+
+        // Checking if the date of the order is before 30 days from present date
+        int custOrderCount = OrderDetails.GetOrderByCustId(_custID)
+            .Select(transaction => transaction.OrderDate.Date)
+            .Distinct()
+            .Count(date => (DateTime.Now - date).Days <= 30);
+
+        // Checking if the order count is more than 22 and calculatig discount
+        float discountPercentage = (custOrderCount > 22) ? 10 : 0;
+
+        // Calculating the net total amount
+        float netTotal = CalculateNetTotal();
+
+        // Calculating discount
+        float discountedNetTotal = netTotal - (netTotal * discountPercentage / 100);
+
+        // Updating total
+        UpdateNetTotals(discountedNetTotal);
+
+        // Display order dialogbox
+        _orderDialogBox = true;
+
+        if (customer != null)
+        {
+            _giveDiscount = customer.Discount;
+        }
+
+        UpdateNetTotals(discountedNetTotal);
+    }
+
+    void UpdateNetTotals(float discountedNetTotal)
+    {
+        foreach (var selectedItem in ItemsSelected)
+        {
+            // Setting the discounted net total to the item
+            selectedItem.NetTotal = discountedNetTotal;
+        }
+    }
+
+    //Method for closing dialogbox ......
+    void OnCancelOrderDialog(bool isCancel)
+    {
+        if (isCancel)
+        {
+            _orderDialogBox = false;
+        }
+        else
+        {
+            // Create a new Order object with the selected items and other ordering details
+            var custOrderData = new Data.Order
+                {
+                    OrderID = Guid.NewGuid(),
+                    Items = ItemsSelected.Select<SelectedItem, Items>(SelectedItem => new Items
+                    {
+                        ItemName = SelectedItem.Items.ItemName,
+                        Price = SelectedItem.Items.Price,
+                        Category = SelectedItem.Items.Category,
+                        Quantity = SelectedItem.Quantity
+                    }).ToList(),
+
+                    CustID = _custID,
+                    OrderDate = DateTime.Now,
+                    TotalPrice = CalculateNetTotal(),
+                };
+
+            foreach (var product in custOrderData.Items)
+            {
+                if (product.Category == ItemCategory.Coffee)
+                {
+                    product.Category = ItemCategory.Coffee;
+                }
+                else if (product.Category == ItemCategory.Addin)
+                {
+                    product.Category = ItemCategory.Addin;
+                }
+            }
+
+
+            
+            List<Data.Order> transactions = OrderDetails.GetOrderDetails();
+            transactions.Add(custOrderData);// Adding the new transaction data to the existing order details
+            OrderDetails.SaveOrderDetails(transactions);
+
+            // Calling methods from CustomerDetails to create new customer and update discount of the customer
+            CustomerDetails.AddMembership(_custID);
+            CustomerDetails.CustGiveDiscount(_custID);
+            CustomerDetails.CustOrdersCount(_custID);
+
+            FilterItems(ItemCategory.Coffee);
+            
+            ItemsSelected.Clear();// Clear the selected products list
+            _orderDialogBox = false;
+
+            // Show the success message
+            _orderSuccessfulDialog = true;
+
+            // Hiding success message after 3 seconds
+            messageTimer = new System.Timers.Timer(3000); // 3000 milliseconds = 3 seconds
+            messageTimer.Elapsed += MessageDisappear;
+            messageTimer.AutoReset = false;
+            messageTimer.Start();
+        }
+    }
+
+    //Method for claiming free coffee
+    void ClaimFreeItem()
+    {
+        List<Customer> customers = CustomerDetails.GetCustDetails();
+        Customer customer = customers.FirstOrDefault(x => x.CustID == _custID);
+        customer.Discount = false;
+        ItemsSelected.Clear();
+        _orderDialogBox = false;
+        CustomerDetails.CustDetails(customers);
+    }
+
+    float CalculateGrossTotal()
+    {
+        return ItemsSelected.Sum(si => si.GetTotalPrice());
+    }
+
+    float CalculateDiscountAmount()
+    {
+        return (GetDiscount() / 100) * CalculateGrossTotal();
+    }
+
+    float CalculateNetTotal()
+    {
+        return CalculateGrossTotal() - CalculateDiscountAmount();
+    }
+
+    public class SelectedItem
+    {
+        public Items Items { get; set; }
+        public int Quantity { get; set; }
+        public float NetTotal { get; set; }
+
+        public float GetTotalPrice()
+        {
+            return Items.Price * Quantity;
+        }
+    }
+
+    void MessageDisappear(object sender, System.Timers.ElapsedEventArgs e)
+    {
+        _orderSuccessfulDialog = false;
+        messageTimer.Dispose();
+
+        InvokeAsync(() =>
+        {
+            StateHasChanged();
+        });
+    }
+}

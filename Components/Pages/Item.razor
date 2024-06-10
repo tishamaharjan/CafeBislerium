@@ -1,0 +1,233 @@
+﻿@page "/items"
+@using CafeBislerium.Components.Layout
+@using CafeBislerium.Data
+
+<nav class="navbar navbar-light">
+    <h2>Items</h2>
+    <button class="btn btn-success" style="background-color:rebeccapurple;" type="button" @onclick="OpenAddItemDialogbox">
+        <span class="oi oi-plus"></span> Add
+    </button>
+</nav>
+<!-- Creating a table for displaying the added items-->
+<table class="table table-bordered table-hover">
+    <thead style="background-color: #D0BFFF;">
+        <tr>
+            <th scope="col">Item Name</th>
+            <th scope="col">Price</th>
+            <th scope="col">Type</th>
+            <th scope="col" style="width: 200px;">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- buttons for deleting or editing item price or name-->
+        @foreach (var items in _items)
+        {
+            <tr>
+                <td>@items.ItemName</td>
+                <td>@items.Price</td>
+                <td>@items.Category</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger" @onclick="()=>OpenDeleteItemDialog(items)">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" @onclick="()=>OpenEditItemDialog(items)">
+                        <i class="fa-solid fa-square-pen"></i>
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (_addItemDialogbox)
+{
+    <!-- Dialog box for adding itemname, price and their type -->
+    <ModalDialog Title="Add Item" OnClose="@CloseAddItemDialogbox" OkLabel="Add">
+        <!-- Creating form for adding users-->
+        <form>
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control username" @bind="_itemName" placeholder="Item Name" />
+                <label for="floatingInput">Item Name</label>
+            </div>
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control password" @bind="_price" placeholder="Price" />
+                <label for="floatingPassword">Price</label>
+            </div>
+            <div class="form-check">
+                <input id="userRole" type="radio" class="form-check-input" name="role" value="@ItemCategory.Coffee"
+                       @onchange="CategoryChangeHandler" checked="@(_type == ItemCategory.Coffee)">
+                <label class="form-check-label">@ItemCategory.Coffee</label>
+            </div>
+            <div class="form-check">
+                <input id="adminRole" type="radio" class="form-check-input" name="role" value="@ItemCategory.Addin"
+                       @onchange="CategoryChangeHandler" checked="@(_type == ItemCategory.Addin)">
+                <label class="form-check-label">@ItemCategory.Addin</label>
+            </div>
+            @if (!string.IsNullOrEmpty(_addItemErrorMessage))
+            {
+                <AlertMessage Type="danger" Message="@_addItemErrorMessage" />
+            }
+        </form>
+    </ModalDialog>
+}
+
+@if (_editItemDialogbox)
+{
+    <!-- Dialog box for editing price and name of item -->
+    <ModalDialog Title="Edit Item" OnClose="@CloseEditItemDialog" OkLabel="Confirm">
+        <form>
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control username" @bind="_editItem.ItemName" placeholder="Item Name" />
+                <label for="floatingInput">Item Name</label>
+            </div>
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control password" @bind="_editItem.Price" placeholder="Price" />
+                <label for="floatingInput">Price</label>
+            </div>
+            @if (!string.IsNullOrEmpty(_editItemErrorMessage))
+            {
+                <AlertMessage Type="danger" Message="@_editItemErrorMessage" />
+            }
+        </form>
+    </ModalDialog>
+}
+
+@if (_deleteItemDialogbox)
+{
+    <!-- Dialog box for confirming to delete item -->
+    <ModalDialog Title="Delete Item" OnClose="@CloseDeleteItemDialog" OkLabel="Confirm">
+        <p>Are you sure you want to delete <strong>@_deleteItem.ItemName</strong>?</p>
+        @if (!string.IsNullOrEmpty(_deleteItemErrorMessage))
+        {
+            <AlertMessage Type="danger" Message="@_deleteItemErrorMessage" />
+        }
+    </ModalDialog>
+}
+
+
+@code {
+    [CascadingParameter]
+    private GlobalState _globalState { get; set; }
+    private List<Data.Items> _items { get; set; }
+
+    private bool _addItemDialogbox { get; set; }
+    private bool _deleteItemDialogbox { get; set; }
+    private bool _editItemDialogbox { get; set; }
+
+    private string _addItemErrorMessage { get; set; }
+    private string _editItemErrorMessage { get; set; }
+    private string _deleteItemErrorMessage { get; set; }
+
+    private Data.Items _editItem { get; set; }
+    private Data.Items _deleteItem { get; set; }
+
+    private string _itemName { get; set; }
+    private float _price { get; set; }
+    private ItemCategory _type { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _items = ItemDetails.GetItemDetails();
+    }
+    
+    //Method for adding item
+    private void OpenAddItemDialogbox()
+    {
+        _addItemDialogbox = true;
+        _itemName = "";
+        _price = 0.0f;
+    }
+
+    //Method for closing add item while canceling to add new item
+    private void CloseAddItemDialogbox(bool isCancel)
+    {
+        if (isCancel)
+        {
+            _addItemDialogbox = false;
+        }
+        else
+        {
+            try
+            {
+                _addItemErrorMessage = "";
+                _items = ItemDetails.AddNewItem(_itemName, _price, _type);
+                _addItemDialogbox = false;
+            }
+            catch (Exception e)
+            {
+                _addItemErrorMessage = e.Message;
+            }
+        }
+    }
+
+    //Method for editing item
+    private void OpenEditItemDialog(Data.Items item)
+    {
+        _editItem = item;
+        _editItemDialogbox = true;
+    }
+
+    //Method for closing edit item while canceling to edit
+    private void CloseEditItemDialog(bool isCancel)
+    {
+        if (isCancel)
+        {
+            _editItemDialogbox = false;
+            _items = ItemDetails.GetItemDetails();
+            foreach (var item in _items)
+            {
+                _editItem.Price = item.Price;
+            }
+        }
+        else
+        {
+            try
+            {
+                _editItemErrorMessage = "";
+                ItemDetails.UpdatePrice(_editItem.ItemName, _editItem.Price);
+                _editItemDialogbox = false;
+            }
+            catch (Exception e)
+            {
+                _editItemErrorMessage = e.Message;
+            }
+        }
+    }
+
+    //Method for handling change in item category
+    private void CategoryChangeHandler(ChangeEventArgs e)
+    {
+        _type = (ItemCategory)Enum.Parse(typeof(ItemCategory), e.Value.ToString());
+    }
+
+    //Method for deleting item
+    private void OpenDeleteItemDialog(Data.Items item)
+    {
+        _deleteItem = item;
+        _deleteItemDialogbox = true;
+    }
+
+    //Method for closing delete item while canceling to delete
+    private void CloseDeleteItemDialog(bool isCancel)
+    {
+        if (isCancel)
+        {
+            _deleteItemDialogbox = false;
+            _deleteItem = null;
+        }
+        else
+        {
+            try
+            {
+                _deleteItemErrorMessage = "";
+                _items = ItemDetails.DeleteItem(_deleteItem.ItemName);
+                _deleteItemDialogbox = false;
+                _deleteItem = null;
+            }
+            catch (Exception e)
+            {
+                _deleteItemErrorMessage = e.Message;
+            }
+        }
+    }
+}

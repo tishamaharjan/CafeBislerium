@@ -1,0 +1,19 @@
+﻿@page "/"
+<link href="https://cdn.jsdelivr.net/npm/open-iconic@1.1.1/font/css/open-iconic-bootstrap.min.css" rel="stylesheet">
+@inject NavigationManager NavManager
+@code {
+    [CascadingParameter]
+    private Data.GlobalState _globalState { get; set; } // for stating the current user
+
+    protected override void OnInitialized()
+    {
+        if (_globalState.CurrentActiveUser == null)
+        {
+            NavManager.NavigateTo("/login");
+        }
+        else
+        {
+            NavManager.NavigateTo("/");
+        }
+    }
+}
